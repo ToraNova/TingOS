@@ -1,12 +1,12 @@
 //-----------------------------------------
 //
 // TingOS Hobbyist Kernel
-// 	Screen display header
+// 	Support function headers
 //
 // chia_jason96@live.com
 //-----------------------------------------
-#ifndef SCREEN_H
-#define SCREEN_H
+#ifndef SUPPORT_H
+#define SUPPORT_H
 
 #define VIDEO_ADDRESS 0xb8000
 #define MAX_ROWS 25
@@ -30,19 +30,6 @@
 
 #define DEBUG_START 1081
 
-unsigned int get_char_cell(unsigned int n);
-unsigned int get_attr_cell(unsigned int n);
-unsigned int get_screen_offset(unsigned int col,unsigned int row);
-
-void drawFull(char target,char attr,unsigned int nrow);
-void rawPut(char target, char attr, unsigned int col, unsigned int row);
-
-unsigned int get_cursor();
-void set_cursor(unsigned int offset);
-void increment_cursor();
-void decrement_cursor();
-
-void printchar(char in,int col, int row, char attr);
-void clearScreen();
+void idlewait(); //time wasting delay
 
 #endif

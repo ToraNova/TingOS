@@ -1,17 +1,17 @@
 # Generate list of sources
-c_sources=$(wildcard kernel/*.c drivers/*.c)
-headers=$(wildcard kernel/*.h drivers/*.h)
+c_sources=$(wildcard kernel/*.c drivers/*.c standard/*.c)
+headers=$(wildcard kernel/*.h drivers/*.h standard/*.h)
 objs=$(c_sources:.c=.o)
 
-IDIR=drivers
+DRIVERDIR=drivers
+STANDRDIR=standard
 OS_IMGFILE=TingOS.flp
 CC=gcc
-CFLAGS?=-ffreestanding -I$(IDIR)
+CFLAGS?=-ffreestanding -I$(DRIVERDIR) -I $(STANDRDIR)
 
 #clean and rebuild, run again
 run: clean os-image
 	./ostart.sh
-	
 
 # Default build target
 all: os-image
@@ -31,19 +31,21 @@ kernel.bin: ${objs}
 
 #create obj files from kernel/sources
 %.o : kernel/%.c
-	$(CC) $(CFLAGS)-c $< -o $@ 
+	$(CC) $(CFLAGS)-c $< -o $@
 
 #create obj files from driver/sources
 %.o : drivers/%.c
-	$(CC) $(CFLAGS)-c $< -o $@ 
+	$(CC) $(CFLAGS)-c $< -o $@
+
+	#create obj files from standard/sources
+%.o : standard/%.c
+	$(CC) $(CFLAGS)-c $< -o $@
 
 #create the boot sector binary
 boot_sect.bin :
 	nasm boot/boot_sector.asm -f bin -o $@ -l boot.lst
 
 clean:
-	rm -rf *.bin kernel/*.o drivers/*.o
+	rm -rf *.bin kernel/*.o drivers/*.o standard/*.o
 	rm -rf boot.lst
 	rm -rf $(OS_IMGFILE)
-
-

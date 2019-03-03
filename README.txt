@@ -8,4 +8,6 @@ introduced make(s) for compiling efforts (use make to compile)
 fixed the video setup / cursor movements
 
 version 3
-initialized git
+initialized git repo
+added a delay subroutine (idlewait under standard)
+added clear screen functionality, fixed a bug in drawFull from screen.c

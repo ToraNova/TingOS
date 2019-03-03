@@ -1,5 +1,5 @@
 //-----------------------------------------
-// 
+//
 // TingOS Hobbyist Kernel
 // 	Screen display implementations
 //
@@ -25,9 +25,9 @@ unsigned int get_screen_offset(unsigned int col,unsigned int row){
 
 void drawFull(char target,char attr,unsigned int nrow){
 	//draws a full line of 'target' with attribute 'attr' on the n-1th row.
-	char *video_memory = (char*) 0xb8000; //video memory
+	char *video_memory = (char*) VIDEO_ADDRESS; //video memory
 	unsigned int rc;
-	for(rc=0;rc<nrow*MAX_COLS;rc++){
+	for(rc=nrow*MAX_COLS;rc<(nrow+1)*MAX_COLS;rc++){
 		video_memory[get_char_cell(rc)+1] = target;
 		video_memory[get_attr_cell(rc)+1] = attr;
 	}
@@ -35,7 +35,7 @@ void drawFull(char target,char attr,unsigned int nrow){
 
 void rawPut(char target, char attr, unsigned int col, unsigned int row){
 	//puts a single char with target and attr on a col-1 and row-1 position.
-	char *video_memory = (char*) 0xb8000; //video memory
+	char *video_memory = (char*) VIDEO_ADDRESS; //video memory
 	video_memory[get_screen_offset(col,row)] = target;
 	video_memory[get_screen_offset(col,row)+1] = attr;
 }
@@ -67,9 +67,9 @@ void decrement_cursor(){
 void printchar(char in,int col, int row, char attr){
 	int offset;
 	unsigned char *vidmem = (unsigned char *) VIDEO_ADDRESS;
-	
+
 	if(!attr)attr=WHITE_ON_BLACK;
-	
+
 	if(col >=0 && row >= 0){
 		offset = get_screen_offset(col,row);
 	}else{
@@ -88,3 +88,11 @@ void printchar(char in,int col, int row, char attr){
 	set_cursor(offset);
 }
 
+void clearScreen(){
+	char *video_memory = (char*) VIDEO_ADDRESS; //obtain video video_memory locatio
+	unsigned int rc;
+	for(rc=0;rc<MAX_ROWS;rc++){
+		drawFull(0x00,WHITE_ON_BLACK,rc);
+	}
+	set_cursor(0);
+}
