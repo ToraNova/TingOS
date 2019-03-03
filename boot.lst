@@ -1,0 +1,315 @@
+     1                                  ; -----------------------------------------
+     2                                  ; Boot sector
+     3                                  ; TingOS Hobbyist Kernel
+     4                                  ;	MAIN BOOT SECTOR CODE _T3
+     5                                  ;
+     6                                  ; chia_jason96@live.com
+     7                                  ; -----------------------------------------
+     8                                  
+     9                                  ; -----------------------------------------
+    10                                  ; Boot sector important macros
+    11                                  ; -----------------------------------------
+    12                                  BOOTSECT_TERM_N	equ 	0xaa55		; boot sector terminating magic number (BS must terminate with this)
+    13                                  BOOTSECT_SIZE	equ 	512		; 512 bytes for the bootsector
+    14                                  BOOTSECT_SIZE_W equ	BOOTSECT_SIZE-2 ; 2 bytes at the end reserved for BOOTSECT_TERM_N
+    15                                  BOOTSECT_BASE_A	equ	0x07c0		; BIOS bootsector base address
+    16                                  
+    17                                  KERNEL_OFFSET	equ	0x1000		; Kernel begins at 0x1000
+    18                                  LOAD_K_S_READ	equ	15
+    19                                  
+    20                                  BIOS_OUT_TTYPUT equ	0x0e		; BIOS teletype scrolling switch
+    21                                  BIOS_INT_DISP	equ	0x10		; BIOS interrupt putchar subroutine
+    22                                  
+    23                                  [org 0x7c00]
+    24                                  [bits 16]
+    25                                  BOOTS_MAIN:
+    26 00000000 8816[DD00]              	mov [BOOT_DRIVE], dl 		; BIOS stores our boot drive in DL
+    27 00000004 BD0090                  	mov bp,0x9000			; stack pointer setup (base pointer)
+    28 00000007 89EC                    	mov sp,bp			; stack setup
+    29                                  
+    30 00000009 BB[8700]                	mov bx,STRING_OS_VER
+    31 0000000C E81800                  	call BS_PRINT_STR
+    32 0000000F BB[A000]                	mov bx,STRING_RM_DIS
+    33 00000012 E81200                  	call BS_PRINT_STR
+    34                                  	
+    35 00000015 E86601                  	call LOAD_KERNEL
+    36 00000018 A10010                  	mov ax,[KERNEL_OFFSET]
+    37 0000001B E82800                  	call PRINT_HEX
+    38 0000001E A10210                  	mov ax,[KERNEL_OFFSET+2]
+    39 00000021 E82200                  	call PRINT_HEX
+    40 00000024 E92B01                  	jmp SWITCH_PM
+    41                                  
+    42                                  ; ------------------------------------
+    43                                  ; Simple display 16bits
+    44                                  ; ------------------------------------
+    45                                  BS_PRINT_STR:	
+    46 00000027 B40E                    	mov ah, BIOS_OUT_TTYPUT 	; int 10/ah = 0eh -> scrolling teletype BIOS routine
+    47 00000029 8A07                    .10	mov al,[bx]
+    48 0000002B 43                      	inc bx				; increment al
+    49 0000002C 08C0                    	or al,al
+    50 0000002E 7404                    	jz .20
+    51 00000030 CD10                    	int BIOS_INT_DISP		;display the current char in AL		
+    52 00000032 EBF5                    	jmp .10
+    53 00000034 C3                      .20	ret
+    54                                  
+    55                                  ; ------------------------------------
+    56                                  ; Simple hex display subroutine (PARAM stored in AX 16bit)
+    57                                  ; ------------------------------------
+    58                                  HEX2CHAR_LOOKUP:
+    59 00000035 303132333435363738-     	db "0123456789ABCDEF",0
+    59 0000003E 3941424344454600   
+    60                                  PRINT_HEX:
+    61                                  
+    62 00000046 52                      	push dx
+    63 00000047 51                      	push cx
+    64 00000048 53                      	push bx
+    65 00000049 50                      	push ax
+    66                                  
+    67 0000004A 8D1E[3500]                  	lea   bx, [HEX2CHAR_LOOKUP]
+    68                                  	
+    69 0000004E 89C2                    	mov dx,ax
+    70                                  
+    71                                  	;AL operation
+    72 00000050 88C4                        	mov ah, al            		; make al and ah equal so we can isolate each half of the byte
+    73 00000052 C0EC04                      	shr ah, 4             		; ah now has the high nibble
+    74 00000055 240F                        	and al, 0x0F          		; al now has the low nibble
+    75 00000057 D7                          	xlat                    	; lookup al's contents in our table
+    76 00000058 86E0                        	xchg ah, al            		; flip around the bytes so now we can get the higher nibble 
+    77 0000005A D7                          	xlat                    	; look up what we just flipped
+    78                                  
+    79 0000005B 89C1                    	mov cx,ax			; 2 chars on cx now for LOWER BYTE
+    80                                  	
+    81                                  	;AH operation
+    82 0000005D 89D0                    	mov ax,dx
+    83 0000005F 88E0                    	mov al, ah            		; make al and ah equal so we can isolate each half of the byte
+    84 00000061 C0EC04                      	shr ah, 4             		; ah now has the high nibble
+    85 00000064 240F                        	and al, 0x0F          		; al now has the low nibble
+    86 00000066 D7                          	xlat                    	; lookup al's contents in our table
+    87 00000067 86E0                        	xchg ah, al            		; flip around the bytes so now we can get the higher nibble 
+    88 00000069 D7                          	xlat                    	; look up what we just flipped
+    89                                  
+    90 0000006A 89C2                    	mov dx,ax			; 2 chars on dx now for HIGHER BYTE		
+    91                                  	
+    92 0000006C B40E                    	mov ah, BIOS_OUT_TTYPUT 	; int 10/ah = 0eh -> scrolling teletype BIOS routine
+    93 0000006E 88D0                    	mov al,dl
+    94 00000070 CD10                    	int BIOS_INT_DISP
+    95 00000072 88F0                    	mov al,dh
+    96 00000074 CD10                    	int BIOS_INT_DISP
+    97                                  
+    98 00000076 88C8                    	mov al,cl
+    99 00000078 CD10                    	int BIOS_INT_DISP
+   100 0000007A 88E8                    	mov al,ch
+   101 0000007C CD10                    	int BIOS_INT_DISP
+   102                                  	
+   103 0000007E B020                    	mov al,' '
+   104 00000080 CD10                    	int BIOS_INT_DISP
+   105                                  
+   106 00000082 58                      	pop ax
+   107 00000083 5B                      	pop bx
+   108 00000084 59                      	pop cx
+   109 00000085 5A                      	pop dx
+   110                                  
+   111 00000086 C3                          	ret
+   112                                  
+   113                                  ; --------------------------------------------------------------------------------------------------
+   114                                  ; Data string (inclusive of newline and carriage return. with 0 as terminator)
+   115                                  ; --------------------------------------------------------------------------------------------------
+   116 00000087 54696E674F53207665-     STRING_OS_VER:	db 'TingOS version 1.00_t3',13,10,0	
+   116 00000090 7273696F6E20312E30-
+   116 00000099 305F74330D0A00     
+   117 000000A0 43757272656E746C79-     STRING_RM_DIS:	db 'Currently in Real mode (16bits)...',13,10,0
+   117 000000A9 20696E205265616C20-
+   117 000000B2 6D6F64652028313662-
+   117 000000BB 697473292E2E2E0D0A-
+   117 000000C4 00                 
+   118 000000C5 4C6F6164696E672074-     STRING_KN_LDM:	db 'Loading the kernel...',13,10,0
+   118 000000CE 6865206B65726E656C-
+   118 000000D7 2E2E2E0D0A00       
+   119 000000DD 00                      BOOT_DRIVE db 0
+   120                                  
+   121                                  ; ------------------------------------
+   122                                  ; Important Includes
+   123                                  ; ------------------------------------
+   124                                  %include "boot/disk_utils.asm"
+     1                              <1> ; -----------------------------------------
+     2                              <1> ; Boot sector
+     3                              <1> ; TingOS Hobbyist Kernel
+     4                              <1> ;	UTIL MODULE FOR DISK ASM
+     5                              <1> ;
+     6                              <1> ; chia_jason96@live.com
+     7                              <1> ; -----------------------------------------
+     8                              <1> 
+     9                              <1> ; -----------------------------------------
+    10                              <1> ; BIOS function defines
+    11                              <1> ; -----------------------------------------
+    12                              <1> BIOS_INP_DSECRD	equ	0x02		; disk sector read function
+    13                              <1> BIOS_INT_READ	equ	0x13 		; this interrupt causes the actual read subroutine
+    14                              <1> 
+    15                              <1> ; ------------------------------------------
+    16                              <1> ; disk read DH  sectors  to ES:BX from  drive  DL (Nick Blundell)
+    17                              <1> ; ------------------------------------------
+    18                              <1> LOAD_DISK:
+    19 000000DE 52                  <1> 	push dx           			; Store DX on stack so  later we can recall
+    20                              <1> 						; how many  sectors  were request to be read,
+    21                              <1> 						; even if it is  altered in the meantime
+    22 000000DF B402                <1> 	mov ah, 0x02     			; BIOS read sector function
+    23 000000E1 88F0                <1> 	mov al, dh       			; Read DH sectors
+    24 000000E3 B500                <1> 	mov ch, 0x00     			; Select cylinder 0
+    25 000000E5 B600                <1> 	mov dh, 0x00     			; Select head 0
+    26 000000E7 B102                <1> 	mov cl, 0x02     			; Start reading from second sector (i.e.
+    27                              <1> 						; after the boot sector)
+    28 000000E9 CD13                <1> 	int 0x13          			; BIOS interrupt
+    29                              <1> 
+    30 000000EB 720C                <1> 	jc  ERROR_DISK    			; Jump if error (i.e. carry flag set)
+    31 000000ED 5A                  <1> 	pop dx            			; Restore DX from the stack
+    32 000000EE 38C6                <1> 	cmp dh, al       			; if AL (sectors read) != DH (sectors expected)
+    33 000000F0 7507                <1> 	jne  ERROR_DISK   			; display error message
+    34                              <1> 
+    35 000000F2 BB[1801]            <1> 	mov bx,STRING_DK_SUC
+    36 000000F5 E82FFF              <1> 	call BS_PRINT_STR
+    37                              <1> 	
+    38 000000F8 C3                  <1> 	ret
+    39                              <1> 
+    40                              <1> ; ------------------------------------
+    41                              <1> ; Error handling
+    42                              <1> ; ------------------------------------
+    43                              <1> ERROR_DISK:
+    44 000000F9 BB[0101]            <1> 	mov bx,STRING_DK_ERR
+    45 000000FC E828FF              <1> 	call BS_PRINT_STR
+    46 000000FF EBFE                <1> 	jmp $
+    47                              <1> 
+    48                              <1> ; ----------------------------------------------------
+    49                              <1> ; Display message strings
+    50                              <1> ; ----------------------------------------------------
+    51 00000101 4469736B2072656164- <1> STRING_DK_ERR:	db 'Disk read error !...',13,10,0
+    51 0000010A 206572726F7220212E- <1>
+    51 00000113 2E2E0D0A00          <1>
+    52 00000118 4469736B2072656164- <1> STRING_DK_SUC:	db 'Disk read successful !...',13,10,0
+    52 00000121 207375636365737366- <1>
+    52 0000012A 756C20212E2E2E0D0A- <1>
+    52 00000133 00                  <1>
+    53                              <1> 
+   125                                  %include "boot/gdt.asm"
+     1                              <1> ; -----------------------------------------
+     2                              <1> ; Boot sector
+     3                              <1> ; TingOS Hobbyist Kernel
+     4                              <1> ;	Global Descriptor Table
+     5                              <1> ;
+     6                              <1> ; chia_jason96@live.com
+     7                              <1> ; -----------------------------------------
+     8                              <1> 
+     9                              <1> GDT_START:
+    10                              <1> GDT_NULL: 			; the mandatory null descriptor
+    11 00000134 00000000            <1> 	dd 0x0   		; ’dd’ means define double word (i.e. 4 bytes)
+    12 00000138 00000000            <1> 	dd 0x0
+    13                              <1> 
+    14                              <1> GDT_CODE: 			; the code segment descriptor
+    15                              <1> 				; base=0x0, limit=0xfffff ,
+    16                              <1> 				; 1st  flags: (present )1 (privilege )00 (descriptor  type)1 -> 1001b
+    17                              <1> 				; type  flags: (code)1 (conforming )0 (readable )1 (accessed )0 -> 1010b
+    18                              <1> 				; 2nd  flags: (granularity )1 (32-bit  default )1 (64-bit  seg)0 (AVL)0 -> 1100b
+    19 0000013C FFFF                <1> 	dw 0xffff     		; Limit (bits  0-15)
+    20 0000013E 0000                <1> 	dw 0x0         		; Base (bits  0-15)
+    21 00000140 00                  <1> 	db 0x0         		; Base (bits  16 -23)
+    22 00000141 9A                  <1> 	db 10011010b 		; 1st flags , type  flags
+    23 00000142 CF                  <1> 	db 11001111b 		; 2nd flags , Limit (bits  16-19)
+    24 00000143 00                  <1> 	db 0x0         		; Base (bits  24 -31)
+    25                              <1> 
+    26                              <1> GDT_DATA:			;the data segment descriptor
+    27                              <1> 				; Same as code  segment  except  for  the  type  flags:
+    28                              <1> 				; type flags: (code)0 (expand down)0 (writable )1 (accessed )0 -> 0010b
+    29 00000144 FFFF                <1> 	dw 0xffff     		; Limit (bits  0-15)
+    30 00000146 0000                <1> 	dw 0x0         		; Base (bits  0-15)
+    31 00000148 00                  <1> 	db 0x0         		; Base (bits  16 -23)
+    32 00000149 92                  <1> 	db 10010010b 		; 1st flags , type  flags
+    33 0000014A CF                  <1> 	db 11001111b 		; 2nd flags , Limit (bits  16-19)
+    34 0000014B 00                  <1> 	db 0x0         		; Base (bits  24 -31)
+    35                              <1> 
+    36                              <1> GDT_END:         			; The  reason  for  putting a label  at the  end of the
+    37                              <1> 					; GDT is so we can  have  the  assembler  calculate
+    38                              <1> 					; the  size of the  GDT  for  the GDT  decriptor (below)
+    39                              <1> 					; GDT  descriptior
+    40                              <1> GDT_DESCRIPTOR:
+    41 0000014C 1700                <1> 	dw  GDT_END  - GDT_START  - 1   ; Size of our GDT , always  less  one
+    42                              <1> 					; of the  true  size
+    43 0000014E [34010000]          <1> 	dd  GDT_START                   ; Start  address  of our  GDT
+    44                              <1> 					; Define  some  handy  constants  for  the  GDT  segment  descriptor  offsets , which
+    45                              <1> 					; are  what  segment  registers  must  contain  when in  protected  mode.  For  example ,
+    46                              <1> 					; when we set DS = 0x10 in PM , the  CPU  knows  that we mean it to use  the
+    47                              <1> 					; segment  described  at  offset 0x10 (i.e. 16  bytes) in our GDT , which in our
+    48                              <1> 					; case is the  DATA  segment  (0x0 -> NULL; 0x08  -> CODE; 0x10  -> DATA)
+    49                              <1> CODE_SEG  equ  GDT_CODE  - GDT_START
+    50                              <1> DATA_SEG  equ  GDT_DATA  - GDT_START
+   126                                  %include "boot/protected_switch.asm"
+     1                              <1> ; -----------------------------------------
+     2                              <1> ; Boot sector
+     3                              <1> ; TingOS Hobbyist Kernel
+     4                              <1> ;	SWITCH MODULE FOR PM
+     5                              <1> ;
+     6                              <1> ; chia_jason96@live.com
+     7                              <1> ; -----------------------------------------
+     8                              <1> 
+     9                              <1> [bits  16]	
+    10                              <1> 	
+    11                              <1> SWITCH_PM:			; Switch  to  protected  mode
+    12 00000152 FA                  <1> 	cli             	; We must  switch  of  interrupts  until  we have
+    13                              <1> 				; set -up the  protected  mode  interrupt  vector
+    14                              <1> 				; otherwise  interrupts  will  run  riot.
+    15 00000153 0F0116[4C01]        <1> 	lgdt [GDT_DESCRIPTOR]   ; Load  our  global  descriptor  table , which  defines
+    16                              <1> 				; the  protected  mode  segments (e.g.  for  code  and  data)
+    17 00000158 0F20C0              <1> 	mov eax , cr0           ; To make  the  switch  to  protected  mode , we set
+    18 0000015B 6683C801            <1> 	or eax , 0x1            ; the  first  bit of CR0 , a control  register
+    19 0000015F 0F22C0              <1> 	mov cr0 , eax
+    20                              <1> 	
+    21 00000162 EA[6701]0800        <1> 	jmp  CODE_SEG:INIT_PM	; Make a far  jump (i.e. to a new  segment) to our 32-bit
+    22                              <1> 				; code.   This  also  forces  the  CPU to  flush  its  cache  of
+    23                              <1> 				; pre -fetched  and real -mode  decoded  instructions , which  can
+    24                              <1> 				; cause  problems.
+    25                              <1> [bits  32]
+    26                              <1> 			
+    27                              <1> INIT_PM:			; Initialise  registers  and  the  stack  once in PM.
+    28                              <1> 
+    29 00000167 66B81000            <1> 	mov ax, DATA_SEG        ; Now in PM, our  old  segments  are  meaningless ,
+    30 0000016B 8ED8                <1> 	mov ds, ax              ; so we  point  our  segment  registers  to the
+    31 0000016D 8ED0                <1> 	mov ss, ax              ; data  selector  we  defined  in our  GDT
+    32 0000016F 8EC0                <1> 	mov es, ax
+    33 00000171 8EE0                <1> 	mov fs, ax
+    34 00000173 8EE8                <1> 	mov gs, ax
+    35 00000175 BD00000900          <1> 	mov ebp , 0x90000       ; Update  our  stack  position  so it is  right
+    36 0000017A 89EC                <1> 	mov esp , ebp           ; at the  top of the  free  space.
+    37                              <1> 	
+    38 0000017C EB13                <1> 	jmp  PROTECTED_MODE     ; Finally , call  some well -known  label
+   127                                  
+   128                                  [bits  16]
+   129                                  
+   130                                  LOAD_KERNEL:				; load_kernel
+   131 0000017E BB[C500]                	mov bx, STRING_KN_LDM    	; Print a message to say we are loading the kernel
+   132 00000181 E8A3FE                  	call  BS_PRINT_STR
+   133 00000184 BB0010                  	mov bx, KERNEL_OFFSET      	; Set-up parameters for our disk_load routine , so
+   134 00000187 B60F                    	mov dh, LOAD_K_S_READ           ; that we load the first 5 sectors (excluding
+   135 00000189 8A16[DD00]              	mov dl, [BOOT_DRIVE]       	; the boot sector) from the boot disk (i.e.  our
+   136 0000018D E84EFF                  	call  LOAD_DISK               	; kernel code) to address KERNEL_OFFSET
+   137 00000190 C3                      	ret
+   138                                  
+   139                                  [bits 32]
+   140                                  
+   141                                  	
+   142                                  PROTECTED_MODE:				; This is  where we  arrive  after  switching  to and  initialising  protected  mode.
+   143 00000191 BB00000000              	mov ebx , 0x00
+   144                                  
+   145 00000196 E8(00100000)            	call KERNEL_OFFSET		; launch the kernel
+   146 0000019B EBFE                    	jmp $				; FINAL BLOCK
+   147                                  
+   148                                  ; ------------------------------------
+   149                                  ; End of a boot sector contains 0xaa55
+   150                                  ; ------------------------------------
+   151 0000019D 00<rept>                times BOOTSECT_SIZE_W-($-$$) db 0 	;padding of 0 to the end of sector
+   152                                  
+   153 000001FE 55AA                    dw BOOTSECT_TERM_N			;magic number to indicate THIS is a boot sector
+   154                                  
+   155                                  ; --------------------------------------------------------------------------------------------------
+   156                                  ; END OF BOOT SECTOR, THE FOLLOWING ARE DISK SECTORS ;ENTRANCE POINT OF <jmp 0x0000:DISK_READ_BREG>
+   157                                  ; --------------------------------------------------------------------------------------------------
+   158                                  
+   159                                  
+   160                                  
